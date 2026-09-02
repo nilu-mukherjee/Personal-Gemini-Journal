@@ -1,0 +1,18 @@
+#!/bin/sh
+echo ""
+echo "🚀 [Git Hook: pre-push] Running pre-deployment security verification..."
+
+node scripts/security-check.js
+
+EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+  echo ""
+  echo "❌ [Git Hook: pre-push] Security tests failed! Push to remote rejected."
+  echo "⚠️ Cloud Run redeployment was blocked to protect your environment."
+  echo ""
+  exit 1
+fi
+
+echo "✅ [Git Hook: pre-push] Security checks passed. Proceeding with push to Cloud Run CI/CD."
+echo ""
+exit 0

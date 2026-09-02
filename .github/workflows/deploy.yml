@@ -14,8 +14,26 @@ env:
   REPOSITORY: cloud-run-source-deploy
 
 jobs:
+  security-tests:
+    name: Automated Security & Compliance Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run Security Tests
+        run: |
+          node scripts/security-check.js
+
   build-and-deploy:
-    name: Build & Deploy
+    name: Build & Deploy to Cloud Run
+    needs: security-tests
     runs-on: ubuntu-latest
 
     steps:
