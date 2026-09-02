@@ -5,3 +5,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+gcp-key.json
+*.key.json
+
+.antigravity/
+.vscode/
+.agents/

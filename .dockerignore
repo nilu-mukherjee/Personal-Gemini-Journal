@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.agents
+.antigravity
+.vscode
+.env*.local
+Dockerfile
+README.md
