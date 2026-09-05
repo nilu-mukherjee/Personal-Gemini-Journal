@@ -97,10 +97,12 @@ try {
       leakFound = true;
     }
 
-    // Check for client-side exposure of GEMINI_API_KEY (skip docs/prose, which may
-    // mention the forbidden variable name as a warning rather than actually using it)
-    const isDocFile = ['.md', '.mdx', '.html', '.txt'].includes(path.extname(f).toLowerCase());
-    if (!isDocFile && content.includes('NEXT_PUBLIC_GEMINI_API_KEY')) {
+    // Check for client-side exposure of GEMINI_API_KEY (skip markdown prose, which may
+    // mention the forbidden variable name as a warning rather than actually using it).
+    // .html/.txt are deliberately NOT exempted here: unlike .md, they can be served or
+    // executed as real client-facing content, so a leaked key inside one must still fail.
+    const isProseFile = ['.md', '.mdx'].includes(path.extname(f).toLowerCase());
+    if (!isProseFile && content.includes('NEXT_PUBLIC_GEMINI_API_KEY')) {
       fail('API Key Exposure', `Forbidden client-exposed environment variable NEXT_PUBLIC_GEMINI_API_KEY found in: ${f}`);
       leakFound = true;
     }
