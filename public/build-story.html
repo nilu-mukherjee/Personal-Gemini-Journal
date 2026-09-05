@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="How Gemini Journal & Reflections grew from a starter lab into a secure, location-aware AI reflection companion using Google AI Studio, Firebase, Google Maps, and Cloud Run.">
+  <meta name="theme-color" content="#16211c">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="I Built an AI Journal That Reflects With You">
+  <meta property="og:description" content="A practical build story covering Gemini, Google AI Studio, Firebase, Maps, security, testing, and Cloud Run.">
+  <title>I Built an AI Journal That Reflects With You</title>
+  <style>
+    :root {
+      --ink: #17211d;
+      --muted: #65716b;
+      --paper: #fbfaf6;
+      --surface: #ffffff;
+      --line: #dfe5df;
+      --forest: #164c3a;
+      --forest-dark: #102d24;
+      --mint: #dff4e8;
+      --amber: #e4a934;
+      --rose: #a64152;
+      --shadow: 0 24px 70px rgba(20, 48, 38, .10);
+      --radius: 22px;
+      --content: 760px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 85% 7%, rgba(228, 169, 52, .13), transparent 25rem),
+        radial-gradient(circle at 8% 18%, rgba(45, 126, 93, .10), transparent 24rem),
+        var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.75;
+      text-rendering: optimizeLegibility;
+    }
+
+    a { color: var(--forest); text-underline-offset: 3px; }
+    a:hover { color: #0c7651; }
+    .skip-link {
+      position: absolute;
+      left: 1rem;
+      top: -5rem;
+      padding: .7rem 1rem;
+      color: white;
+      background: var(--forest-dark);
+      border-radius: 10px;
+      z-index: 10;
+    }
+    .skip-link:focus { top: 1rem; }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 6.5rem 1.4rem 5.5rem;
+      color: #f7fbf8;
+      background:
+        linear-gradient(130deg, rgba(11, 34, 27, .96), rgba(22, 76, 58, .91)),
+        repeating-linear-gradient(45deg, transparent 0 32px, rgba(255,255,255,.025) 33px 34px);
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      width: 30rem;
+      height: 30rem;
+      right: -10rem;
+      bottom: -17rem;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 50%;
+      box-shadow: 0 0 0 4rem rgba(255,255,255,.025), 0 0 0 8rem rgba(255,255,255,.018);
+    }
+    .hero-inner { position: relative; z-index: 1; width: min(980px, 100%); margin: auto; }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: .55rem;
+      margin: 0 0 1.4rem;
+      color: #cbe8d7;
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: "✦"; color: #ffd26f; }
+    h1 {
+      max-width: 900px;
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2.8rem, 7vw, 5.8rem);
+      font-weight: 500;
+      line-height: .99;
+      letter-spacing: -.045em;
+    }
+    .subtitle {
+      max-width: 760px;
+      margin: 1.8rem 0 0;
+      color: #d9e8e0;
+      font-size: clamp(1.06rem, 2.2vw, 1.35rem);
+      line-height: 1.55;
+    }
+    .byline { display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; margin-top: 2rem; color: #aecabd; font-size: .9rem; }
+    .byline strong { color: white; }
+
+    .page { width: min(1120px, calc(100% - 2rem)); margin: -2.2rem auto 5rem; position: relative; }
+    .layout { display: grid; grid-template-columns: 240px minmax(0, var(--content)); gap: 4rem; justify-content: center; align-items: start; }
+    .toc {
+      position: sticky;
+      top: 1.5rem;
+      padding: 1.3rem;
+      background: rgba(255,255,255,.90);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 10px 35px rgba(20, 48, 38, .07);
+      backdrop-filter: blur(12px);
+    }
+    .toc strong { display: block; margin-bottom: .75rem; font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; }
+    .toc a { display: block; padding: .34rem 0; color: var(--muted); font-size: .84rem; line-height: 1.35; text-decoration: none; }
+    .toc a:hover { color: var(--forest); }
+
+    article {
+      padding: clamp(1.5rem, 5vw, 4rem);
+      background: var(--surface);
+      border: 1px solid rgba(223, 229, 223, .8);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    article > p:first-of-type { font-size: 1.25rem; line-height: 1.65; color: #26372f; }
+    article p { margin: 1.05rem 0; }
+    article h2, article h3 { scroll-margin-top: 2rem; }
+    article h2 {
+      margin: 4rem 0 1.15rem;
+      padding-top: .4rem;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(1.9rem, 4vw, 2.65rem);
+      font-weight: 500;
+      line-height: 1.15;
+      letter-spacing: -.025em;
+    }
+    article h2::before { content: ""; display: block; width: 3rem; height: 4px; margin-bottom: 1rem; background: var(--amber); border-radius: 10px; }
+    article h3 { margin: 2.6rem 0 .8rem; font-size: 1.25rem; line-height: 1.35; }
+    article ul { padding-left: 1.3rem; }
+    article li { margin: .55rem 0; padding-left: .25rem; }
+    article li::marker { color: #31906a; }
+    article strong { color: #102e24; }
+
+    .lead-card, .callout, .verification, .lesson {
+      margin: 2rem 0;
+      padding: 1.35rem 1.5rem;
+      border-radius: 16px;
+    }
+    .lead-card { background: #f1f7f3; border: 1px solid #d7e8dc; }
+    .callout { border-left: 5px solid var(--amber); background: #fff8e8; }
+    .callout p:first-child, .verification p:first-child { margin-top: 0; }
+    .callout p:last-child, .verification p:last-child { margin-bottom: 0; }
+    .lesson { background: var(--forest-dark); color: #e9f3ed; }
+    .lesson strong { color: #ffd26f; }
+
+    .feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1.6rem 0 2rem; }
+    .feature {
+      padding: 1.2rem;
+      background: #fcfcfa;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+    }
+    .feature .number { display: block; color: var(--forest); font-size: .75rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    .feature h3 { margin: .4rem 0 .5rem; font-size: 1.05rem; }
+    .feature p { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.55; }
+
+    figure { margin: 2.4rem 0; }
+    .image-placeholder {
+      display: grid;
+      min-height: 250px;
+      place-items: center;
+      padding: 2rem;
+      color: #3e6153;
+      text-align: center;
+      background: linear-gradient(140deg, #ecf5ef, #fff8e5);
+      border: 1px dashed #91ad9f;
+      border-radius: 18px;
+    }
+    figcaption { margin-top: .65rem; color: var(--muted); font-size: .82rem; text-align: center; }
+
+    pre {
+      overflow-x: auto;
+      margin: 1.6rem 0;
+      padding: 1.35rem;
+      color: #e6f2eb;
+      background: #12231c;
+      border: 1px solid #2c4439;
+      border-radius: 15px;
+      box-shadow: inset 0 1px rgba(255,255,255,.04);
+      font: .84rem/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    p code, li code { padding: .12em .38em; color: #184b39; background: #eaf3ed; border-radius: 5px; font-size: .88em; }
+
+    .scorecard { display: grid; gap: 1rem; margin: 2rem 0; }
+    .score-row { display: grid; grid-template-columns: 120px 1fr; gap: 1rem; padding: 1.1rem; background: #fbfcfa; border: 1px solid var(--line); border-radius: 14px; }
+    .score-row b { color: var(--forest); }
+    .score-row p { margin: 0; }
+    .verification { background: #f3f8f5; border: 1px solid #cee2d5; }
+    .status-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: .7rem; margin-top: 1rem; }
+    .status { padding: .75rem .9rem; background: white; border: 1px solid var(--line); border-radius: 10px; font-size: .85rem; }
+    .pass::before { content: "●"; margin-right: .5rem; color: #2a996a; }
+    .blocked::before { content: "●"; margin-right: .5rem; color: var(--rose); }
+
+    .tags { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+    .tag { padding: .45rem .75rem; color: var(--forest); background: var(--mint); border-radius: 999px; font-size: .78rem; font-weight: 750; }
+    footer { width: min(var(--content), calc(100% - 2rem)); margin: 0 auto 4rem; color: var(--muted); font-size: .83rem; text-align: center; }
+
+    @media (max-width: 940px) {
+      .layout { grid-template-columns: minmax(0, var(--content)); gap: 1rem; }
+      .toc { position: static; margin-bottom: .3rem; columns: 2; }
+      .toc strong { column-span: all; }
+    }
+    @media (max-width: 620px) {
+      .hero { padding: 4.5rem 1.1rem 4rem; }
+      .page { width: min(100% - 1rem, 1120px); margin-top: -1.3rem; }
+      article { padding: 1.35rem; border-radius: 17px; }
+      article h2 { margin-top: 3.2rem; }
+      .toc { columns: 1; }
+      .feature-grid, .status-list { grid-template-columns: 1fr; }
+      .score-row { grid-template-columns: 1fr; gap: .25rem; }
+    }
+    @media print {
+      body { background: white; }
+      .hero { padding: 2rem; color: var(--ink); background: white; border-bottom: 2px solid var(--ink); }
+      .subtitle, .byline { color: var(--muted); }
+      .toc { display: none; }
+      .page { width: 100%; margin: 0; }
+      .layout { display: block; }
+      article { max-width: 100%; padding: 1rem 0; border: 0; box-shadow: none; }
+      h2, h3, pre, .feature, .score-row { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#article">Skip to article</a>
+
+  <header class="hero">
+    <div class="hero-inner">
+      <p class="eyebrow">Build story · Google AI</p>
+      <h1>I Built an AI Journal That Reflects With You</h1>
+      <p class="subtitle">How I used Google AI Studio, Gemini, Firebase, Google Maps, and Cloud Run to turn a starter lab into a secure, location-aware reflection companion designed to fail gracefully.</p>
+      <div class="byline"><strong>Gemini Journal &amp; Reflections</strong><span>12 min read</span><span>Engineering · Product · AI</span></div>
+    </div>
+  </header>
+
+  <div class="page">
+    <div class="layout">
+      <nav class="toc" aria-label="Article contents">
+        <strong>In this article</strong>
+        <a href="#idea">The product idea</a>
+        <a href="#ai-studio">How AI Studio shaped it</a>
+        <a href="#implementation">Implementation steps</a>
+        <a href="#originality">Beyond the starter lab</a>
+        <a href="#evaluation">Four-part evaluation</a>
+        <a href="#lessons">What I learned</a>
+      </nav>
+
+      <article id="article">
+        <p>Most journal apps are excellent at remembering what you wrote. They are much less useful when you need help understanding it.</p>
+
+        <p>That gap became the starting point for <strong>Gemini Journal &amp; Reflections</strong>: a private web app where a journal entry becomes an ongoing conversation. A user can explore an experience through deep reflection, compress it into an executive summary, or turn it into a brainstorming session—all without moving their writing between different tools.</p>
+
+        <div class="lead-card">
+          <strong>The real challenge was not connecting a text box to an AI model.</strong>
+          <p>It was building the product around the model: identity, multi-turn memory, private persistence, useful failure states, location context, role-based controls, and a deployment path that does not put secrets in the browser.</p>
+        </div>
+
+        <p>I used <strong>Google AI Studio as my agentic development workbench</strong> to move from product intent to a working Next.js architecture. I used it to decompose requirements, generate and refine TypeScript components, reason about integration failures, and convert security expectations into durable project rules. Gemini then became part of the application itself through the server-side Google Gen AI SDK.</p>
+
+        <figure>
+          <div class="image-placeholder"><strong>Suggested hero screenshot</strong><br>The signed-in workspace showing a multi-turn reflection, the Gemini Lens switcher, a pinned location, and the Firestore save state.</div>
+          <figcaption>One workspace combines conversation, perspective switching, persistence, and place.</figcaption>
+        </figure>
+
+        <h2 id="idea">The product idea: one thought, three useful perspectives</h2>
+
+        <p>Journaling is rarely a one-shot prompt. A thought develops as we revisit it, question it, and connect it to earlier context. I therefore designed the core interaction as a conversation rather than a single generation request.</p>
+
+        <div class="feature-grid">
+          <section class="feature"><span class="number">Lens 01</span><h3>Deep Reflection</h3><p>Responds with empathy, perspective, and a gentle follow-up question.</p></section>
+          <section class="feature"><span class="number">Lens 02</span><h3>Key Summary</h3><p>Extracts themes, emotions, and actionable takeaways.</p></section>
+          <section class="feature"><span class="number">Lens 03</span><h3>Brainstorm</h3><p>Generates multiple angles, possible solutions, and prompts for exploration.</p></section>
+          <section class="feature"><span class="number">Shared memory</span><h3>Multi-turn context</h3><p>Keeps earlier messages in the conversation so a thought can develop naturally.</p></section>
+        </div>
+
+        <p>The selected lens changes the server-side system guidance, while prior messages are sent as structured conversation history. These are not three cosmetic buttons over the same prompt: each mode changes the task Gemini is asked to perform.</p>
+
+        <p>The first message becomes an automatic title, the AI response becomes a short preview, and the full exchange is saved as one evolving Firestore document. This makes history searchable and lets a user resume a thought instead of starting from zero.</p>
+
+        <h2 id="ai-studio">How Google AI Studio shaped the build</h2>
+
+        <h3>1. Turning a broad idea into modules</h3>
+        <p>I began with the experience—private reflection with useful AI assistance—and decomposed it into clear boundaries:</p>
+        <pre><code>Next.js client
+  ├── Firebase Authentication
+  ├── Reflection workspace
+  ├── Searchable history
+  ├── Location picker
+  └── Admin and notification interfaces
+
+Next.js server routes
+  ├── /api/gemini/reflect
+  └── /api/notifications/*
+
+Managed services
+  ├── Gemini models
+  ├── Cloud Firestore
+  └── Google Cloud Run</code></pre>
+        <p>This prevented the Gemini key from drifting into a client component and gave each integration a specific responsibility.</p>
+
+        <h3>2. Developing persistent engineering guardrails</h3>
+        <p>I translated security requirements into repository-level directives in <code>AGENTS.md</code> and <code>GEMINI.md</code>. They cover key isolation, owner-bound Firestore paths, modern Google Maps APIs, admin-role protection, append-only audit records, webhook validation, and four-second outbound timeouts.</p>
+        <p>This was one of the most valuable uses of AI Studio: not merely asking it to generate a feature, but giving it constraints that remained visible while the feature evolved.</p>
+
+        <h3>3. Iterating through real integration failures</h3>
+        <p>The app needed to behave well in both configured Cloud environments and fast preview environments. AI Studio helped work through cases such as an unauthorized Firebase Auth domain, a missing or invalid Maps key, a blocked sign-in popup, a stale JavaScript chunk after deployment, and competing Next.js build artifacts.</p>
+        <p>Those cases became visible product states: copyable domain setup guidance, anonymous sandbox access, an interactive map fallback, an application error boundary, and separate <code>.next-dev</code> and <code>.next</code> build directories.</p>
+
+        <h3>4. Building verification into the workflow</h3>
+        <p>I added Vitest coverage for request validation, mode selection, multi-turn construction, the model fallback ladder, Firestore path construction, payload cleaning, persistence, and deletion. Security checks and unit tests also run before the Cloud Run deployment job in GitHub Actions.</p>
+
+        <div class="callout"><p><strong>AI Studio accelerated implementation, but the repository—not the chat transcript—is the source of truth.</strong> That distinction matters whenever an AI-assisted build is evaluated for authenticity.</p></div>
+
+        <h2 id="implementation">Implementation, step by step</h2>
+
+        <h3>Step 1: Create the application shell</h3>
+        <p>I built the interface with <strong>Next.js 15 App Router, React 19, TypeScript, Tailwind CSS, Motion, and Lucide icons</strong>. The signed-in experience is divided into a responsive history sidebar, a central reflection workspace, and an admin view offered only to authorized users.</p>
+        <p>The workspace includes meaningful async states instead of dead clicks: authentication loading, AI generation, Firestore saving, successful persistence, sync failure, notification delivery, geolocation lookup, and map configuration notices.</p>
+
+        <h3>Step 2: Add Google single sign-on and demo access</h3>
+        <p>Firebase Authentication handles Google sign-in, so the application never stores or processes a password. An auth-state listener restores the session and then synchronizes the user profile in Firestore.</p>
+        <ul>
+          <li>When Firebase reports <code>auth/unauthorized-domain</code>, the UI shows the current hostname, explains where to authorize it, and provides a copy button.</li>
+          <li>When popup authentication is inconvenient in a sandbox or embedded preview, anonymous Firebase Authentication provides a zero-popup demo path.</li>
+        </ul>
+        <p>This preserves the real SSO experience while making the project immediately testable during a demo.</p>
+
+        <h3>Step 3: Put Gemini behind a server route</h3>
+        <p>The client sends journal text to <code>/api/gemini/reflect</code>; only that server route imports <code>@google/genai</code> and reads <code>GEMINI_API_KEY</code>.</p>
+        <p>Before invoking Gemini, the route rejects malformed JSON, empty prompts, and prompts over 12,000 characters. It wraps the current entry in explicit <code>&lt;user_journal_content&gt;</code> boundaries and instructs the model to treat that content as journal material—not as permission to change its identity, reveal instructions, or execute commands.</p>
+        <p>The route also builds conversation history using Gemini's <code>user</code> and <code>model</code> roles. This is what makes follow-up reflection possible.</p>
+        <pre><code>for (const model of MODEL_FALLBACK_LADDER) {
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents,
+      config: { systemInstruction, temperature: 0.7 }
+    });
+
+    if (response.text?.trim()) {
+      return { text: response.text, modelUsed: model };
+    }
+  } catch (error) {
+    if (!isRecoverable(error)) throw error;
+  }
+}</code></pre>
+        <p>The configured ladder tries <code>gemini-3.6-flash</code>, <code>gemini-3.1-flash-lite</code>, <code>gemini-flash-latest</code>, and <code>gemini-3.7-flash</code> for recoverable availability, quota, and model-not-found failures. Non-recoverable errors fail fast instead of wasting additional requests.</p>
+
+        <h3>Step 4: Save only after the complete interaction succeeds</h3>
+        <p>Each journal document lives at:</p>
+        <pre><code>/users/{userId}/interactions/{interactionId}</code></pre>
+        <p>It contains ordered user/model messages, title, mode, summary, timestamps, optional location, sentiment, and the model that produced the response.</p>
+        <p>A small but important usability decision protects unfinished writing: the composer clears <strong>only after</strong> Gemini returns and Firestore confirms the write. If either stage fails, the original text remains in the input and the UI explains that it can be retried.</p>
+        <p>Before persistence, a payload utility normalizes <code>undefined</code> values so Firestore does not reject an otherwise valid interaction. A real-time <code>onSnapshot</code> subscription keeps history synchronized and sorted by its latest update.</p>
+
+        <h3>Step 5: Make place part of the memory</h3>
+        <p>Location is often part of why a memory matters, so an entry can include a place name and coordinates.</p>
+        <p>With a valid <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code>, the picker loads the Maps JavaScript API and uses the modern <code>AdvancedMarkerElement</code>. Map clicks create or move the pin, preset cities are available, and browser geolocation can attach the user's current coordinates. The integration also includes the required attribution ID <code>gmp_mcp_codeassist_v1_aistudio</code>.</p>
+        <p>The distinctive part is the <strong>dual-mode design</strong>. If no key is configured, the key has the wrong format, authentication fails, or the Maps library cannot load, the location feature does not disappear. It switches to a clearly labeled interactive vector canvas with clickable coordinate estimation, city presets, and GPS support.</p>
+        <p>That fallback is deliberately presented as a prototype approximation—not as live reverse geocoding. It keeps the flow demonstrable without pretending simulated data came from Google Maps.</p>
+        <figure>
+          <div class="image-placeholder"><strong>Suggested comparison screenshot</strong><br>Place the live Google Maps picker and the zero-config fallback side by side.</div>
+          <figcaption>Same journal flow, different infrastructure state.</figcaption>
+        </figure>
+
+        <h3>Step 6: Add external notifications without coupling them to saving</h3>
+        <p>Users can format a reflection notification for Slack or Discord, or preview a simulated email alert. The client does not call those third-party services directly. It sends a request to a Next.js server route, where the target is checked before any outbound request occurs.</p>
+        <p>The current safeguards require HTTPS, reject obvious loopback, private, and metadata addresses, constrain Slack and Discord destinations by hostname, and cancel delivery after four seconds with <code>AbortController</code>.</p>
+        <p>Most importantly, notification delivery is separate from journal persistence. A webhook timeout or third-party outage can fail the alert, but it cannot roll back or erase the reflection.</p>
+
+        <h3>Step 7: Add role-aware administration and an immutable ledger</h3>
+        <p>The project includes an admin console with live user counts, role management, security information, and recent audit activity. Admin navigation is hidden for ordinary users, while Firestore rules remain the authoritative boundary for data reads and writes.</p>
+        <p>Standard users may update their own profile only when the <code>role</code> field remains unchanged. Administrators can manage roles and inspect users. Audit records can be created but never updated or deleted, producing an append-only history of administrative activity.</p>
+        <div class="callout"><p><strong>Conditional UI is convenience, not authorization.</strong> The meaningful controls live in Firestore rules through authenticated-owner and admin checks.</p></div>
+
+        <h3>Step 8: Prepare a repeatable Cloud Run release</h3>
+        <p>The production configuration uses Next.js standalone output and a multi-stage Node 22 Alpine container. The final image runs as a non-root <code>nextjs</code> user and contains only the standalone server, static output, and public assets.</p>
+        <p>GitHub Actions gates deployment on the security script and unit tests, then builds the container, pushes it to Artifact Registry, and deploys it to Cloud Run with <code>GEMINI_API_KEY</code> mounted from Secret Manager. A parallel <code>cloudbuild.yaml</code> path is also included for Google Cloud Build.</p>
+        <p>This architecture supports managed restarts and scaling, but I do not equate an infrastructure choice with measured uptime. Real uptime claims require production monitoring, availability data, and alert history.</p>
+
+        <h2 id="originality">What is genuinely beyond the starter lab?</h2>
+        <p>The repository history makes the progression clear. After the initial scaffold, the project added more than 2,000 lines across Maps, notification, RBAC, audit, error-state, and security modules, followed by map/auth stabilization and automated tests.</p>
+        <ul>
+          <li>A multi-turn journal rather than a one-shot prompt demo.</li>
+          <li>Three task-specific Gemini lenses in one persistent conversation.</li>
+          <li>Automatic model failover with fail-fast handling for non-recoverable errors.</li>
+          <li>Location-grounded entries with modern Google Maps markers and a usable no-key fallback.</li>
+          <li>Searchable, filterable, real-time Firestore history.</li>
+          <li>Server-mediated Slack and Discord notifications isolated from saving.</li>
+          <li>Admin role management and append-only audit records.</li>
+          <li>Failure-aware UX for auth domains, blocked popups, stale chunks, Maps configuration, generation, and Firestore errors.</li>
+          <li>Automated tests, secret scanning, containerization, and deployment gates.</li>
+        </ul>
+        <div class="lesson"><strong>The difference:</strong> this is not merely “Gemini can respond to text.” It is “a person can trust the surrounding workflow enough to use it.”</div>
+
+        <h2 id="evaluation">Evaluating the build against the four criteria</h2>
+        <div class="scorecard">
+          <section class="score-row"><b>Authenticity</b><p>The product has its own interaction model, visual language, data model, location experience, admin surface, and notification workflow. Its unique value sits in how those pieces work together around reflection.</p></section>
+          <section class="score-row"><b>Usability</b><p>Google SSO removes password friction. Sandbox access, real-time history, starter prompts, keyboard submission, retained text after failure, search, status feedback, and responsive navigation keep the journey coherent.</p></section>
+          <section class="score-row"><b>Stability</b><p>Bounded inputs, model fallback, graceful Maps degradation, preserved drafts, an error boundary, isolated build directories, request timeouts, a standalone container, and test-gated deployment reduce common failure modes.</p></section>
+          <section class="score-row"><b>Security</b><p>Owner-scoped database paths, role-change restrictions, immutable audit records, server-only Gemini credentials, input limits, prompt-content boundaries, non-root containers, and initial SSRF controls establish a meaningful baseline.</p></section>
+        </div>
+
+        <div class="verification">
+          <p><strong>Verified locally during project review</strong></p>
+          <div class="status-list">
+            <div class="status pass">24 unit tests passed</div>
+            <div class="status pass">ESLint passed</div>
+            <div class="status pass">Production build passed</div>
+            <div class="status blocked">Security script blocked</div>
+          </div>
+          <p>The security script's blocked result is important context. In this environment its child-process Git scan falls back to inspecting ignored local files, and it also flags a prohibited variable name mentioned in developer documentation. No secret value was printed during review, but the scanner behavior and documentation finding should be corrected before describing the gate as green.</p>
+        </div>
+
+        <h3>The next security-hardening steps</h3>
+        <p>The Gemini and notification API routes should verify Firebase ID tokens rather than trusting that only the authenticated UI will call them. Webhook validation should use exact host and path allowlists plus DNS resolution checks to resist suffix tricks and DNS rebinding. The notification payload should be runtime-validated against one shared schema. Finally, audit-log creation rules should require an admin identity and validate every required field instead of allowing any authenticated user to append arbitrary records.</p>
+        <div class="callout"><p>Calling these out does not weaken the project story. It demonstrates that <strong>security is a continuously verified property</strong>, not a badge added to a README.</p></div>
+
+        <h2 id="lessons">What I learned</h2>
+        <p>The biggest lesson from building Gemini Journal & Reflections is that the AI response is only one part of an AI product.</p>
+        <p>A useful system also needs to know who the user is, protect where their data lives, preserve work when dependencies fail, explain configuration problems, and make infrastructure degradation visible without destroying the experience.</p>
+        <p>Google AI Studio helped me move quickly from intent to implementation and reason across the full stack. The best results came when I treated it as a collaborative engineering environment: define boundaries, make constraints persistent, inspect the generated code, reproduce failures, and verify final behavior with tests and builds.</p>
+        <p>The outcome is more than a journal with an AI button. It is a reflection workspace that can hold a conversation, remember context, attach a place, survive several common failures, and expose its own security posture honestly.</p>
+        <p><strong>That is the kind of AI application I want to keep building: thoughtful in the interface, ambitious in its features, and disciplined about the systems underneath.</strong></p>
+
+        <h2>Technology stack</h2>
+        <p>Google AI Studio · Gemini via <code>@google/genai</code> · Next.js 15 · React 19 · TypeScript · Firebase Authentication · Cloud Firestore · Google Maps JavaScript API · Google Cloud Run · Artifact Registry · GitHub Actions · Vitest · Tailwind CSS</p>
+        <div class="tags" aria-label="Suggested Medium tags"><span class="tag">Google AI</span><span class="tag">Gemini</span><span class="tag">Firebase</span><span class="tag">Next.js</span><span class="tag">Artificial Intelligence</span></div>
+      </article>
+    </div>
+  </div>
+
+  <footer>Gemini Journal &amp; Reflections · A Google AI Studio build story</footer>
+</body>
+</html>
