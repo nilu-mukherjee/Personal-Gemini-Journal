@@ -13,10 +13,14 @@ import {
   Compass, 
   FileText, 
   Lightbulb, 
-  SlidersHorizontal,
-  BookmarkCheck
+  BookmarkCheck,
+  MapPin,
+  Bell,
+  Navigation
 } from 'lucide-react';
-import { UserInteraction, JournalMessage, persistInteraction } from '@/lib/firestore-utils';
+import { UserInteraction, JournalMessage, persistInteraction, LocationData } from '@/lib/firestore-utils';
+import { GoogleMapPicker } from './GoogleMapPicker';
+import { NotificationModal } from './NotificationModal';
 
 interface ReflectionWorkspaceProps {
   userId: string;
@@ -37,6 +41,8 @@ export const ReflectionWorkspace: React.FC<ReflectionWorkspaceProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -60,6 +66,23 @@ export const ReflectionWorkspace: React.FC<ReflectionWorkspaceProps> = ({
       persistInteraction(userId, updated).catch((err) =>
         console.warn('Failed to persist mode category change:', err)
       );
+    }
+  };
+
+  const handleLocationChange = async (newLocation: LocationData | null) => {
+    if (!activeInteraction) return;
+    const updated: UserInteraction = {
+      ...activeInteraction,
+      location: newLocation,
+      updatedAt: new Date().toISOString(),
+    };
+    onUpdateInteraction(updated);
+    try {
+      await persistInteraction(userId, updated);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (err) {
+      console.error('Failed to persist location update:', err);
     }
   };
 
@@ -148,6 +171,8 @@ export const ReflectionWorkspace: React.FC<ReflectionWorkspaceProps> = ({
         title: updatedTitle,
         category: mode,
         summary,
+        location: activeInteraction?.location || null,
+        sentiment: activeInteraction?.sentiment || 'Reflective',
         createdAt: activeInteraction?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         messages: updatedMessages,
@@ -283,6 +308,34 @@ export const ReflectionWorkspace: React.FC<ReflectionWorkspaceProps> = ({
             )}
           </div>
 
+          {/* Pin Location Trigger */}
+          <button
+            id="toggle-map-picker-btn"
+            onClick={() => setShowMapPicker(!showMapPicker)}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+              showMapPicker || activeInteraction?.location
+                ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+            }`}
+            title="Pin location to reflection"
+          >
+            <MapPin className="h-3.5 w-3.5 text-emerald-600" />
+            <span className="hidden sm:inline max-w-[120px] truncate">
+              {activeInteraction?.location ? activeInteraction.location.name : 'Pin Location'}
+            </span>
+          </button>
+
+          {/* External Notification Trigger */}
+          <button
+            id="toggle-notification-modal-btn"
+            onClick={() => setShowNotificationModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-600 hover:bg-stone-50 transition"
+            title="Dispatch notification to Slack/Discord"
+          >
+            <Bell className="h-3.5 w-3.5 text-amber-600" />
+            <span className="hidden sm:inline">Alert</span>
+          </button>
+
           {/* Copy full reflection */}
           {activeInteraction && activeInteraction.messages.length > 0 && (
             <button
@@ -299,45 +352,66 @@ export const ReflectionWorkspace: React.FC<ReflectionWorkspaceProps> = ({
       </div>
 
       {/* Mode Switcher Bar */}
-      <div className="flex items-center gap-2 border-b border-stone-100 bg-stone-50/60 px-4 py-2 text-xs text-stone-600 sm:px-6">
-        <span className="font-medium text-stone-400">Gemini Lens:</span>
-        <button
-          id="mode-reflection-btn"
-          onClick={() => handleSelectMode('reflection')}
-          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition ${
-            mode === 'reflection'
-              ? 'bg-stone-900 font-medium text-white shadow-2xs'
-              : 'hover:bg-stone-200/70 text-stone-600'
-          }`}
-        >
-          <Compass className="h-3.5 w-3.5" />
-          <span>Deep Reflection</span>
-        </button>
-        <button
-          id="mode-summary-btn"
-          onClick={() => handleSelectMode('summary')}
-          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition ${
-            mode === 'summary'
-              ? 'bg-stone-900 font-medium text-white shadow-2xs'
-              : 'hover:bg-stone-200/70 text-stone-600'
-          }`}
-        >
-          <FileText className="h-3.5 w-3.5" />
-          <span>Key Summary</span>
-        </button>
-        <button
-          id="mode-brainstorm-btn"
-          onClick={() => handleSelectMode('brainstorm')}
-          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition ${
-            mode === 'brainstorm'
-              ? 'bg-stone-900 font-medium text-white shadow-2xs'
-              : 'hover:bg-stone-200/70 text-stone-600'
-          }`}
-        >
-          <Lightbulb className="h-3.5 w-3.5" />
-          <span>Brainstorm</span>
-        </button>
+      <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/60 px-4 py-2 text-xs text-stone-600 sm:px-6">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-stone-400">Gemini Lens:</span>
+          <button
+            id="mode-reflection-btn"
+            onClick={() => handleSelectMode('reflection')}
+            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition ${
+              mode === 'reflection'
+                ? 'bg-stone-900 font-medium text-white shadow-2xs'
+                : 'hover:bg-stone-200/70 text-stone-600'
+            }`}
+          >
+            <Compass className="h-3.5 w-3.5" />
+            <span>Deep Reflection</span>
+          </button>
+          <button
+            id="mode-summary-btn"
+            onClick={() => handleSelectMode('summary')}
+            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition ${
+              mode === 'summary'
+                ? 'bg-stone-900 font-medium text-white shadow-2xs'
+                : 'hover:bg-stone-200/70 text-stone-600'
+            }`}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            <span>Key Summary</span>
+          </button>
+          <button
+            id="mode-brainstorm-btn"
+            onClick={() => handleSelectMode('brainstorm')}
+            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition ${
+              mode === 'brainstorm'
+                ? 'bg-stone-900 font-medium text-white shadow-2xs'
+                : 'hover:bg-stone-200/70 text-stone-600'
+            }`}
+          >
+            <Lightbulb className="h-3.5 w-3.5" />
+            <span>Brainstorm</span>
+          </button>
+        </div>
+
+        {activeInteraction?.location && (
+          <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+            <MapPin className="h-3 w-3 text-emerald-600" />
+            <span className="font-medium">{activeInteraction.location.name}</span>
+          </div>
+        )}
       </div>
+
+      {/* Collapsible Google Maps Picker Drawer */}
+      {showMapPicker && (
+        <div className="border-b border-stone-200 bg-stone-100/60 p-4 sm:px-6">
+          <GoogleMapPicker
+            location={activeInteraction?.location || null}
+            onSelectLocation={(loc) => {
+              handleLocationChange(loc);
+            }}
+          />
+        </div>
+      )}
 
       {/* Messages Stream */}
       <div
@@ -516,6 +590,14 @@ export const ReflectionWorkspace: React.FC<ReflectionWorkspaceProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Notification Modal */}
+      <NotificationModal
+        isOpen={showNotificationModal}
+        onClose={() => setShowNotificationModal(false)}
+        userId={userId}
+        activeInteraction={activeInteraction}
+      />
     </main>
   );
 };

@@ -2,15 +2,24 @@
 
 import React from 'react';
 import { User } from 'firebase/auth';
-import { Sparkles, ShieldCheck, LogOut, Database, User as UserIcon } from 'lucide-react';
+import { Sparkles, ShieldCheck, LogOut, Database, User as UserIcon, Shield } from 'lucide-react';
 import { logout } from '@/lib/firebase';
 
 interface NavbarProps {
   user: User | null;
   dbConnected: boolean;
+  isAdmin?: boolean;
+  activeView?: 'workspace' | 'admin';
+  onToggleAdminView?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ user, dbConnected }) => {
+export const Navbar: React.FC<NavbarProps> = ({ 
+  user, 
+  dbConnected, 
+  isAdmin = false,
+  activeView = 'workspace',
+  onToggleAdminView 
+}) => {
   const handleLogout = async () => {
     try {
       await logout();
@@ -56,6 +65,25 @@ export const Navbar: React.FC<NavbarProps> = ({ user, dbConnected }) => {
               <Database className={`h-3.5 w-3.5 ${dbConnected ? 'text-emerald-500' : 'text-amber-500'}`} />
               <span>{dbConnected ? 'Firestore Active' : 'Connecting'}</span>
             </div>
+
+            {/* Admin Console Toggle */}
+            {isAdmin && onToggleAdminView && (
+              <button
+                id="admin-console-toggle-btn"
+                onClick={onToggleAdminView}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition border ${
+                  activeView === 'admin'
+                    ? 'border-purple-600 bg-purple-600 text-white shadow-xs'
+                    : 'border-purple-200 bg-purple-50 text-purple-800 hover:bg-purple-100'
+                }`}
+                title="Open Admin Console"
+              >
+                <Shield className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">
+                  {activeView === 'admin' ? 'Workspace' : 'Admin Console'}
+                </span>
+              </button>
+            )}
 
             {/* User Profile */}
             <div

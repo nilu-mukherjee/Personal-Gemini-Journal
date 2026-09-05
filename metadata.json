@@ -1,6 +1,10 @@
 {
   "name": "Gemini Journal & Reflections",
-  "description": "A user-authenticated journaling and reflection app powered by Firebase Authentication, Cloud Firestore, and Gemini 3.6 Flash.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "description": "A user-authenticated journaling and reflection app powered by Firebase Authentication, Cloud Firestore, Gemini 3.6 Flash, Google Maps location pinning, and admin RBAC.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

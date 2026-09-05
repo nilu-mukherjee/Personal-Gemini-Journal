@@ -11,7 +11,8 @@ import {
   ChevronRight, 
   Layers, 
   X,
-  MessageSquare
+  MessageSquare,
+  MapPin
 } from 'lucide-react';
 import { UserInteraction } from '@/lib/firestore-utils';
 
@@ -208,6 +209,14 @@ export const HistorySidebar: React.FC<HistorySidebarProps> = ({
                       item.messages[0]?.content ||
                       'No content written yet...'}
                   </p>
+
+                  {/* Pinned Location Chip */}
+                  {item.location && (
+                    <div className="mt-1.5 flex items-center gap-1 text-[10px] text-emerald-700 font-medium">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{item.location.name}</span>
+                    </div>
+                  )}
 
                   {/* Meta Bar */}
                   <div className="mt-2.5 flex items-center justify-between text-[11px] text-stone-400">

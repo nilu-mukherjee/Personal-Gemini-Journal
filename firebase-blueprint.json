@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account profile with role-based access control (RBAC)",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Unique Firebase Auth UID" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "role": { "type": "string", "enum": ["admin", "user"], "description": "Access control role" },
+        "createdAt": { "type": "string", "description": "Account registration ISO timestamp" },
+        "updatedAt": { "type": "string", "description": "Last profile update ISO timestamp" }
+      },
+      "required": ["userId", "role", "createdAt"]
+    },
+    "Interaction": {
+      "title": "Interaction",
+      "description": "Journal entry and Gemini-generated reflection with optional location and notification metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique interaction document ID" },
+        "userId": { "type": "string", "description": "UID of the owner user" },
+        "prompt": { "type": "string", "description": "Inspirational guiding prompt selected by user" },
+        "rawReflection": { "type": "string", "description": "User authored personal journal reflection" },
+        "summary": { "type": "string", "description": "Structured AI synthesis and key takeaways" },
+        "category": { "type": "string", "description": "AI-classified semantic theme" },
+        "sentiment": { "type": "string", "enum": ["Positive", "Reflective", "Challenged", "Optimistic", "Neutral"], "description": "AI-detected tone" },
+        "location": {
+          "type": "object",
+          "description": "Location pinned to journal entry via Google Maps",
+          "properties": {
+            "lat": { "type": "number", "description": "Latitude coordinate" },
+            "lng": { "type": "number", "description": "Longitude coordinate" },
+            "name": { "type": "string", "description": "Place name or landmark" },
+            "address": { "type": "string", "description": "Formatted address or neighborhood" }
+          }
+        },
+        "notificationSent": { "type": "boolean", "description": "Whether an external notification was dispatched" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Update timestamp" }
+      },
+      "required": ["id", "userId", "prompt", "rawReflection", "summary", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable security and administrative audit record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique audit record ID" },
+        "adminId": { "type": "string", "description": "UID of the actor or admin" },
+        "action": { "type": "string", "description": "Administrative or security action performed" },
+        "targetUserId": { "type": "string", "description": "Optional target user UID affected" },
+        "details": { "type": "string", "description": "Summary or JSON metadata of the event" },
+        "timestamp": { "type": "string", "description": "Event occurrence ISO timestamp" }
+      },
+      "required": ["id", "adminId", "action", "timestamp"]
+    },
+    "NotificationSetting": {
+      "title": "NotificationSetting",
+      "description": "External notification destination and triggering criteria",
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Whether external notifications are active" },
+        "channel": { "type": "string", "enum": ["slack", "discord", "email"], "description": "Dispatch channel" },
+        "webhookUrl": { "type": "string", "description": "Secure webhook destination URL" },
+        "notifyOnCategories": { "type": "string", "description": "Categories to trigger notifications" },
+        "notifyOnSentiments": { "type": "string", "description": "Sentiments to trigger notifications" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile with role-based access control"
+    },
+    "/users/{userId}/interactions/{interactionId}": {
+      "schema": "Interaction",
+      "description": "User authored reflections and AI syntheses"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": "NotificationSetting",
+      "description": "User notification configuration preferences"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Immutable administrative audit log collection"
+    }
+  }
+}

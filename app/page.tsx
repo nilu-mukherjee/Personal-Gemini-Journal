@@ -5,37 +5,59 @@ import { User } from 'firebase/auth';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { 
   UserInteraction, 
+  UserProfile,
   subscribeUserInteractions, 
-  removeInteraction 
+  removeInteraction,
+  syncUserProfile
 } from '@/lib/firestore-utils';
 import { Navbar } from '@/components/Navbar';
 import { AuthView } from '@/components/AuthView';
 import { HistorySidebar } from '@/components/HistorySidebar';
 import { ReflectionWorkspace } from '@/components/ReflectionWorkspace';
+import { AdminDashboard } from '@/components/AdminDashboard';
 import { RefreshCw, Sparkles } from 'lucide-react';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [interactions, setInteractions] = useState<UserInteraction[]>([]);
   const [activeInteraction, setActiveInteraction] = useState<UserInteraction | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
+  const [currentView, setCurrentView] = useState<'workspace' | 'admin'>('workspace');
 
   // Listen to Firebase Auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (!currentUser) {
         setInteractions([]);
         setActiveInteraction(null);
         setDbConnected(false);
+        setUserProfile(null);
+        setCurrentView('workspace');
+      } else {
+        try {
+          const profile = await syncUserProfile(
+            currentUser.uid,
+            currentUser.email,
+            currentUser.displayName
+          );
+          setUserProfile(profile);
+        } catch (err) {
+          console.warn('User profile sync notice:', err);
+        }
       }
       setAuthLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
+
+  const isAdmin = 
+    userProfile?.role === 'admin' || 
+    user?.email?.toLowerCase() === '07.nilu@gmail.com';
 
   // Subscribe to Firestore interactions strictly isolated to the user
   useEffect(() => {
@@ -113,10 +135,21 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-stone-100 font-sans text-stone-900 selection:bg-stone-900 selection:text-white">
-      <Navbar user={user} dbConnected={dbConnected} />
+      <Navbar 
+        user={user} 
+        dbConnected={dbConnected} 
+        isAdmin={isAdmin}
+        activeView={currentView}
+        onToggleAdminView={() => setCurrentView(currentView === 'admin' ? 'workspace' : 'admin')}
+      />
 
       {!user ? (
         <AuthView onAuthSuccess={() => {}} />
+      ) : currentView === 'admin' && isAdmin ? (
+        <AdminDashboard 
+          currentUser={user} 
+          onBackToWorkspace={() => setCurrentView('workspace')} 
+        />
       ) : (
         <div className="flex flex-1 overflow-hidden">
           <HistorySidebar

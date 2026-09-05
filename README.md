@@ -34,14 +34,55 @@ A secure, user-authenticated journaling and personal reflection web application 
 
 ## 2. Firestore Security Rules
 
-Deploy the owner-bound security rules to ensure user data isolation:
+Deploy the owner-bound security rules with Role-Based Access Control (RBAC) and immutable audit logging:
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId}/interactions/{interactionId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        request.auth.token.email == '07.nilu@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    // User profile and role document
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && (
+        request.resource.data.role == 'user' ||
+        request.auth.token.email == '07.nilu@gmail.com' ||
+        isAdmin()
+      );
+      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin();
+      allow delete: if isAdmin();
+
+      // User reflections and AI interactions
+      match /interactions/{interactionId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      // User notification settings
+      match /settings/{settingId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Administrative immutable audit trail
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // strictly immutable
     }
   }
 }
@@ -129,3 +170,29 @@ Follow these testing steps to verify full end-to-end functionality:
 5. **History & Deletion**:
    - Use the search bar in the **Past Entries** sidebar to filter by keyword or category.
    - Click the delete icon on an entry and accept the confirmation dialog. Verify the document is removed from Firestore and the UI.
+
+6. **Location-Aware Entries (Google Maps Integration)**:
+   - In the workspace header, click **Pin Location**.
+   - The interactive location picker drawer will expand. Select a preset (e.g., Tokyo, Paris, San Francisco) or use **Current Location** / map click.
+   - Enter a custom place label and click **Confirm Location Pin**.
+   - Verify the location badge appears in the reflection header and on the history card in the sidebar.
+   - Verify coordinates and place name persist to the Firestore document under `location: { lat, lng, name }`.
+
+7. **External System Notifications (Slack / Discord / Webhook)**:
+   - Click the **Alert** (Bell) button in the workspace toolbar.
+   - In the modal, select a service (**Slack Webhook**, **Discord Webhook**, or **Custom HTTPS**).
+   - Enter a test webhook URL (must start with `https://`).
+   - Click **Send Test Payload**. Verify that invalid or private URLs (e.g., `http://localhost`, `10.0.0.1`) are blocked with an SSRF prevention alert.
+   - Select an alert trigger category (**Key Breakthrough**, **Action Item Identified**, or **High Priority**) and click **Dispatch Notification**.
+   - Verify the confirmation badge and verify that the dispatch operation is logged to the server logs.
+
+8. **Admin Dashboard & Role-Based Access Control (RBAC)**:
+   - Sign in as the designated administrator (`07.nilu@gmail.com`).
+   - Notice the **Admin Console** button appears in the top navigation bar.
+   - Click **Admin Console** to switch to the administrative interface.
+   - Verify the three administrative panels:
+     1. **System Health & Metrics**: Displays active users, total interactions, and security status.
+     2. **User Access Management**: View registered user profiles and toggle roles between `user` and `admin`.
+     3. **Immutable Audit Trail**: Inspect real-time audit logs for all administrative actions (role updates, permission changes) stored in the write-only `/audit_logs` collection.
+   - Click **Back to Workspace** to return to personal journaling.
+
