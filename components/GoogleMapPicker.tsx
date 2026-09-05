@@ -7,11 +7,10 @@ import {
   Search, 
   Navigation, 
   X, 
-  Check, 
   Compass, 
-  ExternalLink,
   Map as MapIcon,
-  Sparkles
+  Sparkles,
+  Info
 } from 'lucide-react';
 import { LocationData } from '@/lib/firestore-utils';
 
@@ -38,14 +37,19 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [authFailed, setAuthFailed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLocating, setIsLocating] = useState(false);
-  const [customName, setCustomName] = useState(location?.name || '');
+  const [, setCustomName] = useState(location?.name || '');
 
   const mapInstanceRef = useRef<any>(null);
   const markerInstanceRef = useRef<any>(null);
 
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  // Validate API key format: genuine Google Maps Platform API keys start with 'AIza'
+  // Credentials with other prefixes (e.g. Gemini/AI Studio 'AQ.Ab8...') are not Maps keys
+  const rawApiKey = (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '').trim();
+  const isKeyFormatValid = Boolean(rawApiKey && rawApiKey.startsWith('AIza') && rawApiKey.length >= 20);
+
   const onSelectLocationRef = useRef(onSelectLocation);
   const locationRef = useRef(location);
 
@@ -54,9 +58,30 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
     locationRef.current = location;
   }, [onSelectLocation, location]);
 
-  // Initialize live Google Maps API if API key is present
+  // Intercept Google Maps authentication failure (InvalidKeyMapError, referrer restrictions)
   useEffect(() => {
-    if (!apiKey) {
+    const originalAuthFailure = (window as any).gm_authFailure;
+    (window as any).gm_authFailure = () => {
+      console.warn('Google Maps authentication notice: Key is invalid or restricted. Activating interactive fallback.');
+      setAuthFailed(true);
+      setMapsLoaded(false);
+      if (typeof originalAuthFailure === 'function') {
+        try {
+          originalAuthFailure();
+        } catch {
+          // Suppress unhandled errors
+        }
+      }
+    };
+
+    return () => {
+      (window as any).gm_authFailure = originalAuthFailure;
+    };
+  }, []);
+
+  // Initialize live Google Maps API only if a valid Google Cloud Maps key is present
+  useEffect(() => {
+    if (!isKeyFormatValid || authFailed) {
       return;
     }
 
@@ -65,7 +90,7 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
     async function initMap() {
       try {
         setOptions({
-          key: apiKey,
+          key: rawApiKey,
           v: 'weekly',
         });
 
@@ -83,6 +108,7 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
           center,
           zoom: loc ? 13 : 4,
           mapId: 'DEMO_MAP_ID', // Modern vector map identifier
+          internalUsageAttributionIds: ['gmp_mcp_codeassist_v1_aistudio'],
           disableDefaultUI: false,
           zoomControl: true,
           streetViewControl: false,
@@ -129,7 +155,7 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
       } catch (err) {
         console.warn('Google Maps API load notice:', err);
         if (isMounted) {
-          setLoadError('Using zero-config interactive maps mode.');
+          setLoadError('Using interactive fallback map mode.');
         }
       }
     }
@@ -139,7 +165,7 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [apiKey, readOnly]);
+  }, [rawApiKey, isKeyFormatValid, authFailed, readOnly]);
 
   const handleSelectPreset = (preset: typeof PRESET_PLACES[0]) => {
     onSelectLocation({
@@ -149,7 +175,7 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
     });
     setCustomName(preset.name);
 
-    if (mapInstanceRef.current) {
+    if (mapInstanceRef.current && isLiveMapActive) {
       mapInstanceRef.current.setCenter({ lat: preset.lat, lng: preset.lng });
       mapInstanceRef.current.setZoom(12);
       if (markerInstanceRef.current) {
@@ -159,8 +185,8 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
   };
 
   const handleGetCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      handleSelectPreset(PRESET_PLACES[0]);
       return;
     }
 
@@ -175,7 +201,7 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
         onSelectLocation({ lat, lng, name });
         setCustomName(name);
 
-        if (mapInstanceRef.current) {
+        if (mapInstanceRef.current && isLiveMapActive) {
           mapInstanceRef.current.setCenter({ lat, lng });
           mapInstanceRef.current.setZoom(14);
           if (markerInstanceRef.current) {
@@ -185,8 +211,8 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
       },
       (err) => {
         setIsLocating(false);
-        console.warn('Geolocation error:', err);
-        // Fallback to preset if permission denied in iframe
+        console.warn('Geolocation notice:', err);
+        // Fallback gracefully to default preset in constrained iframe
         handleSelectPreset(PRESET_PLACES[0]);
       },
       { timeout: 8000, enableHighAccuracy: true }
@@ -206,7 +232,7 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
       return;
     }
 
-    // Default mock geocode coordinates with deterministic offset
+    // Deterministic coordinate derivation for simulation
     const hash = query.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const lat = Number((20 + (hash % 40)).toFixed(4));
     const lng = Number((-100 + ((hash * 7) % 200)).toFixed(4));
@@ -219,6 +245,33 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
     setCustomName(query);
     setSearchQuery('');
   };
+
+  // Handle clicking anywhere on the interactive fallback canvas to drop/move pin
+  const handleFallbackCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (readOnly) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+
+    // Map 0..1 to lat/lng range (lat 60 to 10, lng -130 to 140)
+    const lat = Number((60 - y * 50).toFixed(4));
+    const lng = Number((-130 + x * 270).toFixed(4));
+    const placeName = `Pinned Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+
+    onSelectLocationRef.current({
+      lat: Number(lat.toFixed(5)),
+      lng: Number(lng.toFixed(5)),
+      name: placeName,
+    });
+    setCustomName(placeName);
+  };
+
+  // Determine if live Google Maps can be rendered
+  const isLiveMapActive = isKeyFormatValid && !authFailed && !loadError;
+
+  // Calculate pin marker percentage coordinates on the fallback canvas
+  const pinX = location ? Math.min(92, Math.max(8, ((location.lng + 130) / 270) * 100)) : 50;
+  const pinY = location ? Math.min(88, Math.max(12, ((60 - location.lat) / 50) * 100)) : 50;
 
   return (
     <div id="google-map-picker-container" className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4">
@@ -252,6 +305,23 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
           </button>
         )}
       </div>
+
+      {/* Setup & Status banner if live Google Maps is in fallback mode */}
+      {!isLiveMapActive && (
+        <div className="flex items-center justify-between rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 text-[11px] text-amber-900">
+          <div className="flex items-center gap-1.5">
+            <Info className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+            <span>
+              {authFailed
+                ? 'Google Maps API key is invalid or restricted. Interactive coordinate fallback active.'
+                : rawApiKey && !isKeyFormatValid
+                ? 'Maps API key must start with "AIza" (Google Cloud Maps key). Interactive fallback active.'
+                : 'Zero-config interactive map mode. Click canvas, choose presets, or use GPS.'}
+            </span>
+          </div>
+          <span className="font-mono text-[9px] text-amber-700/80 shrink-0">gmp_mcp_codeassist_v1_aistudio</span>
+        </div>
+      )}
 
       {!readOnly && (
         <>
@@ -306,11 +376,16 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
       <div 
         className="relative h-48 w-full overflow-hidden rounded-xl border border-stone-300 bg-stone-100"
       >
-        {apiKey ? (
+        {isLiveMapActive ? (
           <div ref={mapContainerRef} className="h-full w-full" />
         ) : (
           /* High-Fidelity Interactive Visual Map Canvas Fallback */
-          <div className="relative h-full w-full bg-[#e8ece9] flex flex-col justify-between p-3 overflow-hidden select-none">
+          <div 
+            onClick={handleFallbackCanvasClick}
+            className={`relative h-full w-full bg-[#e8ece9] flex flex-col justify-between p-3 overflow-hidden select-none ${
+              readOnly ? '' : 'cursor-crosshair'
+            }`}
+          >
             {/* Map Grid Pattern */}
             <div 
               className="absolute inset-0 opacity-20 pointer-events-none"
@@ -329,41 +404,44 @@ export const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
             </svg>
 
             {/* Map Controls & Status Badge */}
-            <div className="relative z-10 flex items-center justify-between">
+            <div className="relative z-10 flex items-center justify-between pointer-events-none">
               <div className="flex items-center gap-1.5 rounded-md bg-white/90 px-2 py-1 text-[10px] font-medium text-stone-700 shadow-xs backdrop-blur-xs">
                 <MapIcon className="h-3 w-3 text-emerald-600" />
-                <span>Interactive Map Preview</span>
+                <span>Interactive Map Canvas</span>
               </div>
               <span className="rounded-md bg-stone-900/80 px-2 py-0.5 text-[10px] font-mono text-stone-200">
-                {location ? `${location.lat}°N, ${location.lng}°E` : 'Click to Drop Pin'}
+                {location ? `${location.lat}°N, ${location.lng}°E` : (readOnly ? 'No Location' : 'Click to Drop Pin')}
               </span>
             </div>
 
             {/* Interactive Pin Marker */}
             {location ? (
-              <div className="relative z-10 mx-auto flex flex-col items-center animate-bounce">
-                <div className="flex items-center gap-1 rounded-full bg-stone-900 px-2.5 py-1 text-xs font-semibold text-white shadow-md">
+              <div 
+                className="absolute z-20 flex flex-col items-center pointer-events-none transition-all duration-300"
+                style={{ left: `${pinX}%`, top: `${pinY}%`, transform: 'translate(-50%, -100%)' }}
+              >
+                <div className="flex items-center gap-1 rounded-full bg-stone-900 px-2.5 py-1 text-xs font-semibold text-white shadow-md whitespace-nowrap">
                   <MapPin className="h-3.5 w-3.5 text-amber-400" />
                   <span>{location.name}</span>
                 </div>
                 <div className="h-2 w-2 rotate-45 bg-stone-900 -mt-1" />
               </div>
             ) : (
-              <div className="relative z-10 flex flex-col items-center justify-center text-center py-6">
+              <div className="relative z-10 flex flex-col items-center justify-center text-center py-6 pointer-events-none">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-stone-600 shadow-xs">
                   <Compass className="h-5 w-5 text-emerald-600 animate-pulse" />
                 </div>
                 <p className="mt-2 text-xs font-medium text-stone-800">
-                  Select a preset city or click &quot;Current GPS&quot; above
+                  Click anywhere on the map to drop a pin, or select a preset city above
                 </p>
                 <p className="text-[11px] text-stone-500">
-                  Location coordinates will be securely saved with your entry
+                  Location coordinates will be securely saved with your reflection
                 </p>
               </div>
             )}
 
-            {/* Attribution note */}
-            <div className="relative z-10 flex items-center justify-between text-[10px] text-stone-500">
+            {/* Attribution footer */}
+            <div className="relative z-10 flex items-center justify-between text-[10px] text-stone-500 pointer-events-none">
               <span>Google Maps Platform Ready</span>
               <span className="font-mono text-[9px] text-stone-400">gmp_mcp_codeassist_v1_aistudio</span>
             </div>

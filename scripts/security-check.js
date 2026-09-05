@@ -44,8 +44,27 @@ try {
 // TEST 2: Secret Leakage & Credential Scanning
 // ----------------------------------------------------
 try {
-  const trackedFilesOutput = execSync('git ls-files', { encoding: 'utf8' });
-  const trackedFiles = trackedFilesOutput.split(/\r?\n/).filter(Boolean);
+  let trackedFiles = [];
+  try {
+    const trackedFilesOutput = execSync('git ls-files', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+    trackedFiles = trackedFilesOutput.split(/\r?\n/).filter(Boolean);
+  } catch {
+    // Fallback: Scan repository directory directly if not a git repository
+    function getFiles(dir, fileList = []) {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (['node_modules', '.next', '.next-dev', '.git'].includes(entry.name)) continue;
+          getFiles(fullPath, fileList);
+        } else {
+          fileList.push(fullPath);
+        }
+      }
+      return fileList;
+    }
+    trackedFiles = getFiles('.');
+  }
 
   let leakFound = false;
   const sensitiveFiles = ['gcp-key.json', '.env', '.env.local', '.env.production'];
