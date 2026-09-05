@@ -4,279 +4,52 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="How Gemini Journal & Reflections grew from a starter lab into a secure, location-aware AI reflection companion using Google AI Studio, Firebase, Google Maps, and Cloud Run.">
-  <meta name="theme-color" content="#16211c">
   <meta property="og:type" content="article">
   <meta property="og:title" content="I Built an AI Journal That Reflects With You">
   <meta property="og:description" content="A practical build story covering Gemini, Google AI Studio, Firebase, Maps, security, testing, and Cloud Run.">
   <title>I Built an AI Journal That Reflects With You</title>
-  <style>
-    :root {
-      --ink: #17211d;
-      --muted: #65716b;
-      --paper: #fbfaf6;
-      --surface: #ffffff;
-      --line: #dfe5df;
-      --forest: #164c3a;
-      --forest-dark: #102d24;
-      --mint: #dff4e8;
-      --amber: #e4a934;
-      --rose: #a64152;
-      --shadow: 0 24px 70px rgba(20, 48, 38, .10);
-      --radius: 22px;
-      --content: 760px;
-    }
-
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      color: var(--ink);
-      background:
-        radial-gradient(circle at 85% 7%, rgba(228, 169, 52, .13), transparent 25rem),
-        radial-gradient(circle at 8% 18%, rgba(45, 126, 93, .10), transparent 24rem),
-        var(--paper);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.75;
-      text-rendering: optimizeLegibility;
-    }
-
-    a { color: var(--forest); text-underline-offset: 3px; }
-    a:hover { color: #0c7651; }
-    .skip-link {
-      position: absolute;
-      left: 1rem;
-      top: -5rem;
-      padding: .7rem 1rem;
-      color: white;
-      background: var(--forest-dark);
-      border-radius: 10px;
-      z-index: 10;
-    }
-    .skip-link:focus { top: 1rem; }
-
-    .hero {
-      position: relative;
-      overflow: hidden;
-      padding: 6.5rem 1.4rem 5.5rem;
-      color: #f7fbf8;
-      background:
-        linear-gradient(130deg, rgba(11, 34, 27, .96), rgba(22, 76, 58, .91)),
-        repeating-linear-gradient(45deg, transparent 0 32px, rgba(255,255,255,.025) 33px 34px);
-    }
-    .hero::after {
-      content: "";
-      position: absolute;
-      width: 30rem;
-      height: 30rem;
-      right: -10rem;
-      bottom: -17rem;
-      border: 1px solid rgba(255,255,255,.14);
-      border-radius: 50%;
-      box-shadow: 0 0 0 4rem rgba(255,255,255,.025), 0 0 0 8rem rgba(255,255,255,.018);
-    }
-    .hero-inner { position: relative; z-index: 1; width: min(980px, 100%); margin: auto; }
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: .55rem;
-      margin: 0 0 1.4rem;
-      color: #cbe8d7;
-      font-size: .78rem;
-      font-weight: 800;
-      letter-spacing: .14em;
-      text-transform: uppercase;
-    }
-    .eyebrow::before { content: "✦"; color: #ffd26f; }
-    h1 {
-      max-width: 900px;
-      margin: 0;
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(2.8rem, 7vw, 5.8rem);
-      font-weight: 500;
-      line-height: .99;
-      letter-spacing: -.045em;
-    }
-    .subtitle {
-      max-width: 760px;
-      margin: 1.8rem 0 0;
-      color: #d9e8e0;
-      font-size: clamp(1.06rem, 2.2vw, 1.35rem);
-      line-height: 1.55;
-    }
-    .byline { display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; margin-top: 2rem; color: #aecabd; font-size: .9rem; }
-    .byline strong { color: white; }
-
-    .page { width: min(1120px, calc(100% - 2rem)); margin: -2.2rem auto 5rem; position: relative; }
-    .layout { display: grid; grid-template-columns: 240px minmax(0, var(--content)); gap: 4rem; justify-content: center; align-items: start; }
-    .toc {
-      position: sticky;
-      top: 1.5rem;
-      padding: 1.3rem;
-      background: rgba(255,255,255,.90);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      box-shadow: 0 10px 35px rgba(20, 48, 38, .07);
-      backdrop-filter: blur(12px);
-    }
-    .toc strong { display: block; margin-bottom: .75rem; font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; }
-    .toc a { display: block; padding: .34rem 0; color: var(--muted); font-size: .84rem; line-height: 1.35; text-decoration: none; }
-    .toc a:hover { color: var(--forest); }
-
-    article {
-      padding: clamp(1.5rem, 5vw, 4rem);
-      background: var(--surface);
-      border: 1px solid rgba(223, 229, 223, .8);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-    }
-    article > p:first-of-type { font-size: 1.25rem; line-height: 1.65; color: #26372f; }
-    article p { margin: 1.05rem 0; }
-    article h2, article h3 { scroll-margin-top: 2rem; }
-    article h2 {
-      margin: 4rem 0 1.15rem;
-      padding-top: .4rem;
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(1.9rem, 4vw, 2.65rem);
-      font-weight: 500;
-      line-height: 1.15;
-      letter-spacing: -.025em;
-    }
-    article h2::before { content: ""; display: block; width: 3rem; height: 4px; margin-bottom: 1rem; background: var(--amber); border-radius: 10px; }
-    article h3 { margin: 2.6rem 0 .8rem; font-size: 1.25rem; line-height: 1.35; }
-    article ul { padding-left: 1.3rem; }
-    article li { margin: .55rem 0; padding-left: .25rem; }
-    article li::marker { color: #31906a; }
-    article strong { color: #102e24; }
-
-    .lead-card, .callout, .verification, .lesson {
-      margin: 2rem 0;
-      padding: 1.35rem 1.5rem;
-      border-radius: 16px;
-    }
-    .lead-card { background: #f1f7f3; border: 1px solid #d7e8dc; }
-    .callout { border-left: 5px solid var(--amber); background: #fff8e8; }
-    .callout p:first-child, .verification p:first-child { margin-top: 0; }
-    .callout p:last-child, .verification p:last-child { margin-bottom: 0; }
-    .lesson { background: var(--forest-dark); color: #e9f3ed; }
-    .lesson strong { color: #ffd26f; }
-
-    .feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1.6rem 0 2rem; }
-    .feature {
-      padding: 1.2rem;
-      background: #fcfcfa;
-      border: 1px solid var(--line);
-      border-radius: 15px;
-    }
-    .feature .number { display: block; color: var(--forest); font-size: .75rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
-    .feature h3 { margin: .4rem 0 .5rem; font-size: 1.05rem; }
-    .feature p { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.55; }
-
-    figure { margin: 2.4rem 0; }
-    .image-placeholder {
-      display: grid;
-      min-height: 250px;
-      place-items: center;
-      padding: 2rem;
-      color: #3e6153;
-      text-align: center;
-      background: linear-gradient(140deg, #ecf5ef, #fff8e5);
-      border: 1px dashed #91ad9f;
-      border-radius: 18px;
-    }
-    figcaption { margin-top: .65rem; color: var(--muted); font-size: .82rem; text-align: center; }
-
-    pre {
-      overflow-x: auto;
-      margin: 1.6rem 0;
-      padding: 1.35rem;
-      color: #e6f2eb;
-      background: #12231c;
-      border: 1px solid #2c4439;
-      border-radius: 15px;
-      box-shadow: inset 0 1px rgba(255,255,255,.04);
-      font: .84rem/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
-    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    p code, li code { padding: .12em .38em; color: #184b39; background: #eaf3ed; border-radius: 5px; font-size: .88em; }
-
-    .scorecard { display: grid; gap: 1rem; margin: 2rem 0; }
-    .score-row { display: grid; grid-template-columns: 120px 1fr; gap: 1rem; padding: 1.1rem; background: #fbfcfa; border: 1px solid var(--line); border-radius: 14px; }
-    .score-row b { color: var(--forest); }
-    .score-row p { margin: 0; }
-    .verification { background: #f3f8f5; border: 1px solid #cee2d5; }
-    .status-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: .7rem; margin-top: 1rem; }
-    .status { padding: .75rem .9rem; background: white; border: 1px solid var(--line); border-radius: 10px; font-size: .85rem; }
-    .pass::before { content: "●"; margin-right: .5rem; color: #2a996a; }
-    .blocked::before { content: "●"; margin-right: .5rem; color: var(--rose); }
-
-    .tags { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
-    .tag { padding: .45rem .75rem; color: var(--forest); background: var(--mint); border-radius: 999px; font-size: .78rem; font-weight: 750; }
-    footer { width: min(var(--content), calc(100% - 2rem)); margin: 0 auto 4rem; color: var(--muted); font-size: .83rem; text-align: center; }
-
-    @media (max-width: 940px) {
-      .layout { grid-template-columns: minmax(0, var(--content)); gap: 1rem; }
-      .toc { position: static; margin-bottom: .3rem; columns: 2; }
-      .toc strong { column-span: all; }
-    }
-    @media (max-width: 620px) {
-      .hero { padding: 4.5rem 1.1rem 4rem; }
-      .page { width: min(100% - 1rem, 1120px); margin-top: -1.3rem; }
-      article { padding: 1.35rem; border-radius: 17px; }
-      article h2 { margin-top: 3.2rem; }
-      .toc { columns: 1; }
-      .feature-grid, .status-list { grid-template-columns: 1fr; }
-      .score-row { grid-template-columns: 1fr; gap: .25rem; }
-    }
-    @media print {
-      body { background: white; }
-      .hero { padding: 2rem; color: var(--ink); background: white; border-bottom: 2px solid var(--ink); }
-      .subtitle, .byline { color: var(--muted); }
-      .toc { display: none; }
-      .page { width: 100%; margin: 0; }
-      .layout { display: block; }
-      article { max-width: 100%; padding: 1rem 0; border: 0; box-shadow: none; }
-      h2, h3, pre, .feature, .score-row { break-inside: avoid; }
-    }
-  </style>
 </head>
 <body>
-  <a class="skip-link" href="#article">Skip to article</a>
+  <a href="#article">Skip to article</a>
 
-  <header class="hero">
-    <div class="hero-inner">
-      <p class="eyebrow">Build story · Google AI</p>
+  <header>
+    <hgroup>
+      <p><strong>✦ Build story · Google AI</strong></p>
       <h1>I Built an AI Journal That Reflects With You</h1>
-      <p class="subtitle">How I used Google AI Studio, Gemini, Firebase, Google Maps, and Cloud Run to turn a starter lab into a secure, location-aware reflection companion designed to fail gracefully.</p>
-      <div class="byline"><strong>Gemini Journal &amp; Reflections</strong><span>12 min read</span><span>Engineering · Product · AI</span></div>
-    </div>
+      <p>How I used Google AI Studio, Gemini, Firebase, Google Maps, and Cloud Run to turn a starter lab into a secure, location-aware reflection companion designed to fail gracefully.</p>
+    </hgroup>
+    <p><strong>Gemini Journal &amp; Reflections</strong> · 12 min read · Engineering · Product · AI</p>
   </header>
+  <hr>
 
-  <div class="page">
-    <div class="layout">
-      <nav class="toc" aria-label="Article contents">
-        <strong>In this article</strong>
-        <a href="#idea">The product idea</a>
-        <a href="#ai-studio">How AI Studio shaped it</a>
-        <a href="#implementation">Implementation steps</a>
-        <a href="#originality">Beyond the starter lab</a>
-        <a href="#evaluation">Four-part evaluation</a>
-        <a href="#lessons">What I learned</a>
-      </nav>
+  <nav aria-label="Article contents">
+    <h2>In this article</h2>
+    <ol>
+      <li><a href="#idea">The product idea</a></li>
+      <li><a href="#ai-studio">How AI Studio shaped it</a></li>
+      <li><a href="#implementation">Implementation steps</a></li>
+      <li><a href="#originality">Beyond the starter lab</a></li>
+      <li><a href="#evaluation">Four-part evaluation</a></li>
+      <li><a href="#lessons">What I learned</a></li>
+    </ol>
+  </nav>
+  <hr>
 
-      <article id="article">
+  <main>
+    <article id="article">
         <p>Most journal apps are excellent at remembering what you wrote. They are much less useful when you need help understanding it.</p>
 
         <p>That gap became the starting point for <strong>Gemini Journal &amp; Reflections</strong>: a private web app where a journal entry becomes an ongoing conversation. A user can explore an experience through deep reflection, compress it into an executive summary, or turn it into a brainstorming session—all without moving their writing between different tools.</p>
 
-        <div class="lead-card">
+        <blockquote>
           <strong>The real challenge was not connecting a text box to an AI model.</strong>
           <p>It was building the product around the model: identity, multi-turn memory, private persistence, useful failure states, location context, role-based controls, and a deployment path that does not put secrets in the browser.</p>
-        </div>
+        </blockquote>
 
         <p>I used <strong>Google AI Studio as my agentic development workbench</strong> to move from product intent to a working Next.js architecture. I used it to decompose requirements, generate and refine TypeScript components, reason about integration failures, and convert security expectations into durable project rules. Gemini then became part of the application itself through the server-side Google Gen AI SDK.</p>
 
         <figure>
-          <div class="image-placeholder"><strong>Suggested hero screenshot</strong><br>The signed-in workspace showing a multi-turn reflection, the Gemini Lens switcher, a pinned location, and the Firestore save state.</div>
+          <p><strong>🖼️ Suggested hero screenshot</strong><br>The signed-in workspace showing a multi-turn reflection, the Gemini Lens switcher, a pinned location, and the Firestore save state.</p>
           <figcaption>One workspace combines conversation, perspective switching, persistence, and place.</figcaption>
         </figure>
 
@@ -284,12 +57,12 @@
 
         <p>Journaling is rarely a one-shot prompt. A thought develops as we revisit it, question it, and connect it to earlier context. I therefore designed the core interaction as a conversation rather than a single generation request.</p>
 
-        <div class="feature-grid">
-          <section class="feature"><span class="number">Lens 01</span><h3>Deep Reflection</h3><p>Responds with empathy, perspective, and a gentle follow-up question.</p></section>
-          <section class="feature"><span class="number">Lens 02</span><h3>Key Summary</h3><p>Extracts themes, emotions, and actionable takeaways.</p></section>
-          <section class="feature"><span class="number">Lens 03</span><h3>Brainstorm</h3><p>Generates multiple angles, possible solutions, and prompts for exploration.</p></section>
-          <section class="feature"><span class="number">Shared memory</span><h3>Multi-turn context</h3><p>Keeps earlier messages in the conversation so a thought can develop naturally.</p></section>
-        </div>
+        <ol>
+          <li><h3>Lens 01 — Deep Reflection</h3><p>Responds with empathy, perspective, and a gentle follow-up question.</p></li>
+          <li><h3>Lens 02 — Key Summary</h3><p>Extracts themes, emotions, and actionable takeaways.</p></li>
+          <li><h3>Lens 03 — Brainstorm</h3><p>Generates multiple angles, possible solutions, and prompts for exploration.</p></li>
+          <li><h3>Shared memory — Multi-turn context</h3><p>Keeps earlier messages in the conversation so a thought can develop naturally.</p></li>
+        </ol>
 
         <p>The selected lens changes the server-side system guidance, while prior messages are sent as structured conversation history. These are not three cosmetic buttons over the same prompt: each mode changes the task Gemini is asked to perform.</p>
 
@@ -327,7 +100,7 @@ Managed services
         <h3>4. Building verification into the workflow</h3>
         <p>I added Vitest coverage for request validation, mode selection, multi-turn construction, the model fallback ladder, Firestore path construction, payload cleaning, persistence, and deletion. Security checks and unit tests also run before the Cloud Run deployment job in GitHub Actions.</p>
 
-        <div class="callout"><p><strong>AI Studio accelerated implementation, but the repository—not the chat transcript—is the source of truth.</strong> That distinction matters whenever an AI-assisted build is evaluated for authenticity.</p></div>
+        <blockquote><p><strong>AI Studio accelerated implementation, but the repository—not the chat transcript—is the source of truth.</strong> That distinction matters whenever an AI-assisted build is evaluated for authenticity.</p></blockquote>
 
         <h2 id="implementation">Implementation, step by step</h2>
 
@@ -377,7 +150,7 @@ Managed services
         <p>The distinctive part is the <strong>dual-mode design</strong>. If no key is configured, the key has the wrong format, authentication fails, or the Maps library cannot load, the location feature does not disappear. It switches to a clearly labeled interactive vector canvas with clickable coordinate estimation, city presets, and GPS support.</p>
         <p>That fallback is deliberately presented as a prototype approximation—not as live reverse geocoding. It keeps the flow demonstrable without pretending simulated data came from Google Maps.</p>
         <figure>
-          <div class="image-placeholder"><strong>Suggested comparison screenshot</strong><br>Place the live Google Maps picker and the zero-config fallback side by side.</div>
+          <p><strong>🖼️ Suggested comparison screenshot</strong><br>Place the live Google Maps picker and the zero-config fallback side by side.</p>
           <figcaption>Same journal flow, different infrastructure state.</figcaption>
         </figure>
 
@@ -389,7 +162,7 @@ Managed services
         <h3>Step 7: Add role-aware administration and an immutable ledger</h3>
         <p>The project includes an admin console with live user counts, role management, security information, and recent audit activity. Admin navigation is hidden for ordinary users, while Firestore rules remain the authoritative boundary for data reads and writes.</p>
         <p>Standard users may update their own profile only when the <code>role</code> field remains unchanged. Administrators can manage roles and inspect users. Audit records can be created but never updated or deleted, producing an append-only history of administrative activity.</p>
-        <div class="callout"><p><strong>Conditional UI is convenience, not authorization.</strong> The meaningful controls live in Firestore rules through authenticated-owner and admin checks.</p></div>
+        <blockquote><p><strong>Conditional UI is convenience, not authorization.</strong> The meaningful controls live in Firestore rules through authenticated-owner and admin checks.</p></blockquote>
 
         <h3>Step 8: Prepare a repeatable Cloud Run release</h3>
         <p>The production configuration uses Next.js standalone output and a multi-stage Node 22 Alpine container. The final image runs as a non-root <code>nextjs</code> user and contains only the standalone server, static output, and public assets.</p>
@@ -409,30 +182,30 @@ Managed services
           <li>Failure-aware UX for auth domains, blocked popups, stale chunks, Maps configuration, generation, and Firestore errors.</li>
           <li>Automated tests, secret scanning, containerization, and deployment gates.</li>
         </ul>
-        <div class="lesson"><strong>The difference:</strong> this is not merely “Gemini can respond to text.” It is “a person can trust the surrounding workflow enough to use it.”</div>
+        <blockquote><strong>The difference:</strong> this is not merely “Gemini can respond to text.” It is “a person can trust the surrounding workflow enough to use it.”</blockquote>
 
         <h2 id="evaluation">Evaluating the build against the four criteria</h2>
-        <div class="scorecard">
-          <section class="score-row"><b>Authenticity</b><p>The product has its own interaction model, visual language, data model, location experience, admin surface, and notification workflow. Its unique value sits in how those pieces work together around reflection.</p></section>
-          <section class="score-row"><b>Usability</b><p>Google SSO removes password friction. Sandbox access, real-time history, starter prompts, keyboard submission, retained text after failure, search, status feedback, and responsive navigation keep the journey coherent.</p></section>
-          <section class="score-row"><b>Stability</b><p>Bounded inputs, model fallback, graceful Maps degradation, preserved drafts, an error boundary, isolated build directories, request timeouts, a standalone container, and test-gated deployment reduce common failure modes.</p></section>
-          <section class="score-row"><b>Security</b><p>Owner-scoped database paths, role-change restrictions, immutable audit records, server-only Gemini credentials, input limits, prompt-content boundaries, non-root containers, and initial SSRF controls establish a meaningful baseline.</p></section>
-        </div>
+        <dl>
+          <dt><strong>Authenticity</strong></dt><dd>The product has its own interaction model, visual language, data model, location experience, admin surface, and notification workflow. Its unique value sits in how those pieces work together around reflection.</dd>
+          <dt><strong>Usability</strong></dt><dd>Google SSO removes password friction. Sandbox access, real-time history, starter prompts, keyboard submission, retained text after failure, search, status feedback, and responsive navigation keep the journey coherent.</dd>
+          <dt><strong>Stability</strong></dt><dd>Bounded inputs, model fallback, graceful Maps degradation, preserved drafts, an error boundary, isolated build directories, request timeouts, a standalone container, and test-gated deployment reduce common failure modes.</dd>
+          <dt><strong>Security</strong></dt><dd>Owner-scoped database paths, role-change restrictions, immutable audit records, server-only Gemini credentials, input limits, prompt-content boundaries, non-root containers, and initial SSRF controls establish a meaningful baseline.</dd>
+        </dl>
 
-        <div class="verification">
-          <p><strong>Verified locally during project review</strong></p>
-          <div class="status-list">
-            <div class="status pass">24 unit tests passed</div>
-            <div class="status pass">ESLint passed</div>
-            <div class="status pass">Production build passed</div>
-            <div class="status blocked">Security script blocked</div>
-          </div>
+        <aside>
+          <h3>Verified locally during project review</h3>
+          <ul>
+            <li>✅ 24 unit tests passed</li>
+            <li>✅ ESLint passed</li>
+            <li>✅ Production build passed</li>
+            <li>⚠️ Security script blocked</li>
+          </ul>
           <p>The security script's blocked result is important context. In this environment its child-process Git scan falls back to inspecting ignored local files, and it also flags a prohibited variable name mentioned in developer documentation. No secret value was printed during review, but the scanner behavior and documentation finding should be corrected before describing the gate as green.</p>
-        </div>
+        </aside>
 
         <h3>The next security-hardening steps</h3>
         <p>The Gemini and notification API routes should verify Firebase ID tokens rather than trusting that only the authenticated UI will call them. Webhook validation should use exact host and path allowlists plus DNS resolution checks to resist suffix tricks and DNS rebinding. The notification payload should be runtime-validated against one shared schema. Finally, audit-log creation rules should require an admin identity and validate every required field instead of allowing any authenticated user to append arbitrary records.</p>
-        <div class="callout"><p>Calling these out does not weaken the project story. It demonstrates that <strong>security is a continuously verified property</strong>, not a badge added to a README.</p></div>
+        <blockquote><p>Calling these out does not weaken the project story. It demonstrates that <strong>security is a continuously verified property</strong>, not a badge added to a README.</p></blockquote>
 
         <h2 id="lessons">What I learned</h2>
         <p>The biggest lesson from building Gemini Journal & Reflections is that the AI response is only one part of an AI product.</p>
@@ -443,11 +216,11 @@ Managed services
 
         <h2>Technology stack</h2>
         <p>Google AI Studio · Gemini via <code>@google/genai</code> · Next.js 15 · React 19 · TypeScript · Firebase Authentication · Cloud Firestore · Google Maps JavaScript API · Google Cloud Run · Artifact Registry · GitHub Actions · Vitest · Tailwind CSS</p>
-        <div class="tags" aria-label="Suggested Medium tags"><span class="tag">Google AI</span><span class="tag">Gemini</span><span class="tag">Firebase</span><span class="tag">Next.js</span><span class="tag">Artificial Intelligence</span></div>
-      </article>
-    </div>
-  </div>
+        <p><strong>Suggested Medium tags:</strong> Google AI · Gemini · Firebase · Next.js · Artificial Intelligence</p>
+    </article>
+  </main>
 
+  <hr>
   <footer>Gemini Journal &amp; Reflections · A Google AI Studio build story</footer>
 </body>
 </html>
