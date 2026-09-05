@@ -31,6 +31,17 @@ jobs:
         run: |
           node scripts/security-check.js
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run Unit Tests
+        run: npm run test
+
   build-and-deploy:
     name: Build & Deploy to Cloud Run
     needs: security-tests

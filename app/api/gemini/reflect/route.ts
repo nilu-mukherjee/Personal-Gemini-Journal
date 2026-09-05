@@ -55,9 +55,10 @@ async function generateContentWithFallback(
         errorMsg.includes('quota') ||
         errorMsg.includes('overloaded');
 
-      if (!isRecoverable && model === MODEL_FALLBACK_LADDER[0]) {
-        // Continue trying fallback models even for unexpected errors
-        continue;
+      // Non-recoverable errors (e.g. bad request, invalid key) won't be fixed by
+      // switching models, so fail fast instead of burning through the ladder.
+      if (!isRecoverable) {
+        throw error;
       }
     }
   }
