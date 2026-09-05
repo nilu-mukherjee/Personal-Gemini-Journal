@@ -2,6 +2,8 @@
 
 A secure, user-authenticated journaling and personal reflection web application powered by **Next.js 15**, **Firebase Authentication**, **Cloud Firestore**, and **Gemini 3.6 Flash**.
 
+> 📘 **Implementation & Architecture Document**: For a detailed breakdown of implementation steps, unique features beyond the starter lab, Single Sign-On usability, stability resilience, and multi-tier security hardening, see [IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md).
+
 ---
 
 ## Architecture & Security Overview
@@ -138,6 +140,18 @@ gcloud run services update gemini-journal \
   --update-labels=dev-tutorial=cloud-run-ai-challenge \
   --region=asia-southeast1
 ```
+
+### Post-Deployment: Authorize Cloud Run Domain in Firebase Authentication
+
+When hosting on Cloud Run (e.g. `gemini-journal-1003427733440.asia-southeast1.run.app`), Firebase Authentication requires registering the domain in the authorized domains whitelist for Google Sign-In popups to succeed:
+
+1. Open [Firebase Console &rarr; Authentication &rarr; Settings](https://console.firebase.google.com/project/fixmycity-506122/authentication/settings).
+2. Scroll to the **Authorized domains** card.
+3. Click **Add domain** and enter your Cloud Run service domain:
+   ```
+   gemini-journal-1003427733440.asia-southeast1.run.app
+   ```
+4. Click **Done**. Google Sign-In will authenticate smoothly. (You can also click **Sandbox Demo Access** on the landing page for immediate instant-access testing without popups).
 
 ---
 

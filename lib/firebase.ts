@@ -59,6 +59,15 @@ export async function loginWithGoogle(): Promise<User> {
     return result.user;
   } catch (error: any) {
     console.error('Google Sign-In Error:', error);
+    if (error.code === 'auth/unauthorized-domain') {
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+      const customErr: any = new Error(
+        `Domain '${currentHost}' is not authorized in Firebase Authentication. Add it to Authorized Domains in Firebase Console > Authentication > Settings.`
+      );
+      customErr.code = 'auth/unauthorized-domain';
+      customErr.host = currentHost;
+      throw customErr;
+    }
     // If popup is blocked by iframe security policies, escalate clear diagnostic
     if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
       throw new Error('Sign-in popup was blocked or closed. Please allow popups or open the app in a new tab.');

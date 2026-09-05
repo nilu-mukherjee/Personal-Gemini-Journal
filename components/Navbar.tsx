@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { User } from 'firebase/auth';
-import { Sparkles, ShieldCheck, LogOut, Database, User as UserIcon, Shield } from 'lucide-react';
+import { Sparkles, ShieldCheck, LogOut, Database, User as UserIcon, Shield, FileText } from 'lucide-react';
 import { logout } from '@/lib/firebase';
 
 interface NavbarProps {
@@ -65,6 +65,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Database className={`h-3.5 w-3.5 ${dbConnected ? 'text-emerald-500' : 'text-amber-500'}`} />
               <span>{dbConnected ? 'Firestore Active' : 'Connecting'}</span>
             </div>
+
+            {/* Documentation Button */}
+            <a
+              id="view-documentation-btn"
+              href="/documentation.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-100 transition shadow-2xs"
+              title="Open Implementation & Architecture Document"
+            >
+              <FileText className="h-3.5 w-3.5 text-blue-600" />
+              <span className="hidden sm:inline">Docs (.doc / .docx)</span>
+            </a>
 
             {/* Admin Console Toggle */}
             {isAdmin && onToggleAdminView && (

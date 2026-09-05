@@ -8,7 +8,11 @@ import {
   Database, 
   ArrowRight, 
   CheckCircle2, 
-  AlertCircle 
+  AlertCircle,
+  ExternalLink,
+  Copy,
+  Check,
+  Globe
 } from 'lucide-react';
 import { loginWithGoogle, loginAsGuestDemo } from '@/lib/firebase';
 
@@ -19,21 +23,39 @@ interface AuthViewProps {
 export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setErrorMessage(null);
+    setUnauthorizedDomain(null);
     try {
       await loginWithGoogle();
       if (onAuthSuccess) onAuthSuccess();
     } catch (err: any) {
       console.error('Sign-in error:', err);
-      setErrorMessage(
-        err?.message || 'Unable to complete sign-in. If popups are restricted in this preview, please try the Sandbox Demo button below.'
-      );
+      if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized-domain')) {
+        const host = err?.host || (typeof window !== 'undefined' ? window.location.hostname : 'gemini-journal-1003427733440.asia-southeast1.run.app');
+        setUnauthorizedDomain(host);
+        setErrorMessage(
+          `Domain '${host}' is not on the Firebase Authorized Domains list for project 'fixmycity-506122'.`
+        );
+      } else {
+        setErrorMessage(
+          err?.message || 'Unable to complete sign-in. If popups are restricted in this preview, please try the Sandbox Demo button below.'
+        );
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCopyDomain = () => {
+    if (!unauthorizedDomain) return;
+    navigator.clipboard.writeText(unauthorizedDomain);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   const handleGuestDemo = async () => {
@@ -107,13 +129,74 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuthSuccess }) => {
         {errorMessage && (
           <div
             id="auth-error-banner"
-            className="mt-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800"
+            className="mt-4 rounded-xl border border-red-200 bg-red-50/90 p-4 text-xs text-red-900 shadow-2xs"
           >
-            <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-medium">Authentication notice</p>
-              <p className="mt-0.5">{errorMessage}</p>
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold text-red-900">Authentication notice</p>
+                <p className="mt-0.5 text-red-800">{errorMessage}</p>
+              </div>
             </div>
+
+            {unauthorizedDomain && (
+              <div className="mt-3.5 pt-3 border-t border-red-200/80 space-y-2.5">
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-white/90 px-3 py-2 border border-red-200">
+                  <div className="flex items-center gap-2 truncate text-stone-800 font-mono text-[11px]">
+                    <Globe className="h-3.5 w-3.5 text-stone-500 shrink-0" />
+                    <span className="truncate">{unauthorizedDomain}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyDomain}
+                    className="inline-flex items-center gap-1 shrink-0 rounded-md bg-stone-100 hover:bg-stone-200 px-2 py-1 text-[11px] font-medium text-stone-700 transition"
+                    title="Copy domain to clipboard"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="h-3 w-3 text-emerald-600" />
+                        <span className="text-emerald-700">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3 w-3 text-stone-600" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="text-[11px] text-stone-700 space-y-1">
+                  <p className="font-semibold text-stone-900">How to whitelist this Cloud Run domain:</p>
+                  <ol className="list-decimal list-inside space-y-0.5 pl-1 text-stone-600">
+                    <li>Open <strong>Firebase Console &rarr; Authentication &rarr; Settings</strong>.</li>
+                    <li>Scroll down to the <strong>Authorized domains</strong> section.</li>
+                    <li>Click <strong>Add domain</strong>, paste the domain above, and click <strong>Done</strong>.</li>
+                  </ol>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <a
+                    href="https://console.firebase.google.com/project/fixmycity-506122/authentication/settings"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-[11px] font-semibold text-white shadow-2xs transition"
+                  >
+                    <span>Open Firebase Auth Settings</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={handleGuestDemo}
+                    className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-white hover:bg-red-50/50 px-2.5 py-1.5 text-[11px] font-medium text-red-900 transition"
+                  >
+                    <span>Continue in Sandbox Demo Mode</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
